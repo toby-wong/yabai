@@ -115,7 +115,9 @@ enum window_flag
     WINDOW_WINDOWED    = 0x020,
     WINDOW_MOVABLE     = 0x040,
     WINDOW_RESIZABLE   = 0x080,
-    WINDOW_ORDERED_OUT = 0x100
+    WINDOW_ORDERED_OUT = 0x100,
+    // A hidden native tab keeps its identity while its sibling owns the tile.
+    WINDOW_TAB_MEMBER  = 0x200
 };
 
 enum window_rule_flag
@@ -161,6 +163,7 @@ char *window_subrole_ts(struct window *window);
 bool window_ax_can_move(struct window *window);
 bool window_can_move(struct window *window);
 bool window_ax_can_resize(struct window *window);
+bool window_ax_has_tab_group(struct window *window);
 bool window_can_resize(struct window *window);
 bool window_can_minimize(struct window *window);
 bool window_is_undersized(struct window *window);

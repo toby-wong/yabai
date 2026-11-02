@@ -329,11 +329,15 @@ int main(int argc, char **argv)
     SLSRegisterConnectionNotifyProc(g_connection, connection_handler, 808, NULL);
     SLSRegisterConnectionNotifyProc(g_connection, connection_handler, 1202, NULL);
 
+    // Native tab switches publish space-membership changes in addition to visibility.
+    SLSRegisterConnectionNotifyProc(g_connection, connection_handler, 815, NULL);
+    SLSRegisterConnectionNotifyProc(g_connection, connection_handler, 1325, NULL);
+    SLSRegisterConnectionNotifyProc(g_connection, connection_handler, 1326, NULL);
+
     if (workspace_is_macos_sequoia() || workspace_is_macos_tahoe()) {
         SLSRegisterConnectionNotifyProc(g_connection, connection_handler, 804, NULL);
 
         // NOTE: Only delivered for windows subscribed to, which is every window from Sequoia on.
-        SLSRegisterConnectionNotifyProc(g_connection, connection_handler, 815, NULL);
         SLSRegisterConnectionNotifyProc(g_connection, connection_handler, 816, NULL);
     }
 
