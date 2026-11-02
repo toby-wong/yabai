@@ -19,7 +19,7 @@ static CONNECTION_CALLBACK(connection_handler)
         event_loop_post(&g_event_loop, SLS_WINDOW_ORDERED, (void *) (intptr_t) wid, 0);
     } else if (type == 815) {
         uint32_t wid; memcpy(&wid, data, sizeof(uint32_t));
-        event_loop_post(&g_event_loop, SLS_WINDOW_VISIBLE, (void *) (intptr_t) wid, 0);
+        if (wid && g_window_manager.window_native_tabs) event_loop_post(&g_event_loop, SLS_WINDOW_VISIBLE, (void *) (intptr_t) wid, 0);
         event_loop_post(&g_event_loop, SLS_WINDOW_IS_VISIBLE, (void *) (intptr_t) wid, 0);
     } else if (type == 816) {
         uint32_t wid; memcpy(&wid, data, sizeof(uint32_t));
@@ -31,8 +31,9 @@ static CONNECTION_CALLBACK(connection_handler)
         // NOTE: space-membership payload is { u64 sid; u32 wid }, so the wid sits at offset 8.
         uint32_t wid = 0;
         if (data && data_length >= 12) memcpy(&wid, (char *) data + 8, sizeof(uint32_t));
-        if (wid) event_loop_post(&g_event_loop, type == 1326 ? SLS_REMOVED_FROM_SPACE : SLS_ADDED_TO_SPACE,
-                                 (void *) (intptr_t) wid, 0);
+        if (wid && g_window_manager.window_native_tabs) {
+            event_loop_post(&g_event_loop, type == 1326 ? SLS_REMOVED_FROM_SPACE : SLS_ADDED_TO_SPACE, (void *) (intptr_t) wid, 0);
+        }
     } else if (type == 1202) {
         __atomic_store_n(&__last_cmd_tab_time, read_os_timer(), __ATOMIC_RELEASE);
     }
