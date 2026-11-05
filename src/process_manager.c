@@ -126,6 +126,10 @@ uint64_t process_manager_active_space_for_psn(int connection)
         uint32_t wid = SLSWindowIteratorGetWindowID(iterator);
         int level = SLSWindowIteratorGetLevel(iterator);
 
+        // Hidden native tabs retain stale Space IDs after their group moves.
+        struct window *window = window_manager_find_window(&g_window_manager, wid);
+        if (window && window_check_flag(window, WINDOW_TAB_MEMBER)) continue;
+
         if (parent_wid == 0) {
             if (level == 0 || level == 3 || level == 8) {
                 if (((attributes & 0x2) || (tags & 0x400000000000000)) && (((tags & 0x1)) || ((tags & 0x2) && (tags & 0x80000000)))) {
