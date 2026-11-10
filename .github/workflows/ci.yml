@@ -1,0 +1,33 @@
+name: Test fork
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check upstream merge behavior
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Check native tabs and visibility
+        run: make -C tests
+      - name: Build universal release candidate
+        env:
+          BUILD_ID: ci.${{ github.run_number }}.${{ github.run_attempt }}
+        run: python3 scripts/build-release.py --build-id "$BUILD_ID" --output "$RUNNER_TEMP/yabai-release"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: yabai-universal
+          path: ${{ runner.temp }}/yabai-release/
+          if-no-files-found: error
+          retention-days: 14

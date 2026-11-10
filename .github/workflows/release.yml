@@ -1,0 +1,64 @@
+name: Sync upstream and publish
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - Formula/**
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: upstream-and-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'toby-wong/yabai' && github.ref == 'refs/heads/master'
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Set automation identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Prepare upstream merge
+        id: source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: python3 scripts/sync-upstream.py --event "$EVENT_NAME"
+      - name: Check upstream merge behavior
+        if: steps.source.outputs.build_required == 'true'
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Check native tabs and visibility
+        if: steps.source.outputs.build_required == 'true'
+        run: make -C tests
+      - name: Build universal release
+        if: steps.source.outputs.build_required == 'true'
+        env:
+          BUILD_ID: ${{ github.run_number }}.${{ github.run_attempt }}
+        run: python3 scripts/build-release.py --build-id "$BUILD_ID" --output "$RUNNER_TEMP/yabai-release"
+      - name: Keep validated artifacts
+        if: steps.source.outputs.build_required == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: yabai-universal
+          path: ${{ runner.temp }}/yabai-release/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish source, release, and Homebrew formula
+        if: steps.source.outputs.build_required == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ steps.source.outputs.base_sha }}
+        run: python3 scripts/publish-release.py --manifest "$RUNNER_TEMP/yabai-release/release.json" --expected-head "$EXPECTED_HEAD"
+      - name: Report no upstream changes
+        if: steps.source.outputs.build_required != 'true'
+        run: echo 'Already includes upstream/master; no build or release needed.' >> "$GITHUB_STEP_SUMMARY"

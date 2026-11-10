@@ -1,3 +1,8 @@
+This fork adds native macOS tabs, preserves the existing macOS 27 and
+hide-on-close fixes, and publishes prebuilt Apple Silicon/Intel releases.
+See [FORK.md](FORK.md) for installation, native-tab setup, patch provenance, and
+automatic upstream updates.
+
 <!-- Please be careful editing the below HTML, as GitHub is quite finicky with anything that looks like an HTML tag in GitHub Flavored Markdown. -->
 <p align="center">
   <img width="75%" src="assets/banner/banner.svg" alt="Banner">

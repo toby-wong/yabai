@@ -1,6 +1,7 @@
 /bin
 /tests/bin
 /tests/integration/bin
+__pycache__/
 /archive
 /src/osax/loader_bin.c
 /src/osax/payload_bin.c
