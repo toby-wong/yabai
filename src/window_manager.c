@@ -316,6 +316,8 @@ void window_manager_window_did_order_in(struct window_manager *wm, struct window
 {
     window_clear_flag(window, WINDOW_ORDERED_OUT);
 
+    // The native-tab visibility handler owns promotion of a hidden tab.
+    if (window_check_flag(window, WINDOW_TAB_MEMBER)) return;
     if (!sid) return;
     if (!window_manager_should_manage_window(window)) return;
     if (window_manager_find_managed_window(wm, window)) return;

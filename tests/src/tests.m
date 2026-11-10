@@ -13,6 +13,7 @@ typedef TEST_SIG(function);
 
 #include "area.c"
 #include "window_ordered.c"
+#include "native_tabs.c"
 
 #define TEST_ENTRY(name) { #name, test_##name },
 #define TEST_LIST                                              \
@@ -24,7 +25,16 @@ typedef TEST_SIG(function);
     TEST_ENTRY(window_ordered_in_keeps_float)                  \
     TEST_ENTRY(window_reordered_stays_tiled)                   \
     TEST_ENTRY(window_visible_event_while_still_ordered_out)   \
-    TEST_ENTRY(macos_version_newer_than_listed)
+    TEST_ENTRY(macos_version_newer_than_listed)                \
+    TEST_ENTRY(native_tab_preserves_bsp_node)                 \
+    TEST_ENTRY(native_tab_preserves_stack_order)              \
+    TEST_ENTRY(native_tab_rejects_missing_node)               \
+    TEST_ENTRY(native_tab_release_preserves_ordered_out)      \
+    TEST_ENTRY(native_tab_hidden_event_keeps_handover_node)   \
+    TEST_ENTRY(native_tab_order_in_does_not_tile_hidden_tab)  \
+    TEST_ENTRY(native_tabs_keep_ordinary_hide_on_close)       \
+    TEST_ENTRY(native_tab_removal_ring_deduplicates)          \
+    TEST_ENTRY(native_tab_float_handover_preserves_focus)
 
 static struct {
     char *name;

@@ -1,4 +1,5 @@
 extern struct event_loop g_event_loop;
+extern struct window_manager g_window_manager;
 extern enum mission_control_mode g_mission_control_mode;
 extern volatile uint64_t __last_cmd_tab_time;
 
@@ -18,11 +19,15 @@ static CONNECTION_CALLBACK(connection_handler)
         uint32_t wid; memcpy(&wid, data, sizeof(uint32_t));
         event_loop_post(&g_event_loop, SLS_WINDOW_ORDERED, (void *) (intptr_t) wid, 0);
     } else if (type == 815) {
-        uint32_t wid; memcpy(&wid, data, sizeof(uint32_t));
-        if (wid && g_window_manager.window_native_tabs) event_loop_post(&g_event_loop, SLS_WINDOW_VISIBLE, (void *) (intptr_t) wid, 0);
+        uint32_t wid = 0;
+        if (data && data_length >= sizeof(wid)) memcpy(&wid, data, sizeof(wid));
+        if (!wid) return;
         event_loop_post(&g_event_loop, SLS_WINDOW_IS_VISIBLE, (void *) (intptr_t) wid, 0);
+        if (g_window_manager.window_native_tabs) event_loop_post(&g_event_loop, SLS_WINDOW_VISIBLE, (void *) (intptr_t) wid, 0);
     } else if (type == 816) {
-        uint32_t wid; memcpy(&wid, data, sizeof(uint32_t));
+        uint32_t wid = 0;
+        if (data && data_length >= sizeof(wid)) memcpy(&wid, data, sizeof(wid));
+        if (!wid) return;
         event_loop_post(&g_event_loop, SLS_WINDOW_IS_INVISIBLE, (void *) (intptr_t) wid, 0);
     } else if (type == 804) {
         uint32_t wid; memcpy(&wid, data, sizeof(uint32_t));

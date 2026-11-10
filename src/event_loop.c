@@ -931,6 +931,13 @@ static EVENT_HANDLER(WINDOW_FOCUSED)
 
 static bool tabbed_window_swap(struct view *view, struct window *a, struct window *b)
 {
+    // A tab can have been hidden before native-tab handling was enabled.
+    if (window_check_flag(b, WINDOW_ORDERED_OUT)) {
+        uint8_t ordered_in = 0;
+        SLSWindowIsOrderedIn(g_connection, b->id, &ordered_in);
+        if (ordered_in) window_clear_flag(b, WINDOW_ORDERED_OUT);
+    }
+
     struct view *b_view = window_manager_find_managed_window(&g_window_manager, b);
     if ((b_view && b_view != view) ||
         !window_manager_should_manage_window(b) ||
@@ -1290,6 +1297,20 @@ static EVENT_HANDLER(SLS_WINDOW_IS_INVISIBLE)
     uint8_t ordered_in = 0;
     SLSWindowIsOrderedIn(g_connection, wid, &ordered_in);
     if (ordered_in) return;
+
+    if (g_window_manager.window_native_tabs) {
+        // Tab handovers need the old node until the 1325/1326 pair or WINDOW_CREATED
+        // arrives. Let that pairing interval finish before treating this as an
+        // ordinary hide-on-close window, then recheck visibility and membership.
+        if (window_check_flag(window, WINDOW_TAB_MEMBER)) return;
+        if (!param1) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(TAB_SWITCH_PAIR_MS * NSEC_PER_MSEC)),
+                           dispatch_get_main_queue(), ^{
+                event_loop_post(&g_event_loop, SLS_WINDOW_IS_INVISIBLE, (void *)(intptr_t) wid, 1);
+            });
+            return;
+        }
+    }
 
     window_manager_window_did_order_out(&g_window_manager, window);
 }
