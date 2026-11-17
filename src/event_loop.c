@@ -13,6 +13,61 @@ volatile bool __pending_gesture;
 volatile uint64_t __last_gesture_time;
 volatile uint64_t __last_cmd_tab_time;
 
+#define WINDOW_RECOVERY_ATTEMPTS 5
+
+static struct {
+    uint32_t wid;
+    pid_t pid;
+    uint32_t generation;
+    int attempts;
+} g_window_recovery;
+
+enum window_recovery_result {
+    WINDOW_RECOVERY_FINISHED,
+    WINDOW_RECOVERY_RETRY
+};
+
+static void window_recovery_schedule(uint32_t generation)
+{
+#ifndef TESTS
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        event_loop_post(&g_event_loop, WINDOW_RECOVERY, (void *)(uintptr_t) generation, 0);
+    });
+#else
+    // Tests deliver timer events explicitly without running the main dispatch queue.
+    (void) generation;
+#endif
+}
+
+static void window_recovery_begin(uint32_t wid, pid_t pid)
+{
+    if (!wid || pid <= 0 || window_manager_find_window(&g_window_manager, wid)) return;
+    if (g_window_recovery.wid == wid && g_window_recovery.pid == pid) return;
+
+    // Only the most recently focused missing window needs recovery. A generation
+    // prevents a delayed event from acting on a later focus request.
+    g_window_recovery.wid = wid;
+    g_window_recovery.pid = pid;
+    g_window_recovery.attempts = 0;
+    ++g_window_recovery.generation;
+    window_recovery_schedule(g_window_recovery.generation);
+}
+
+static void window_recovery_run(uint32_t generation, enum window_recovery_result (*recover)(uint32_t, pid_t))
+{
+    if (!g_window_recovery.wid || generation != g_window_recovery.generation) return;
+
+    // A normal creation event gets the first chance and makes this retry a no-op.
+    if (window_manager_find_window(&g_window_manager, g_window_recovery.wid) ||
+        recover(g_window_recovery.wid, g_window_recovery.pid) == WINDOW_RECOVERY_FINISHED ||
+        ++g_window_recovery.attempts == WINDOW_RECOVERY_ATTEMPTS) {
+        g_window_recovery.wid = 0;
+        return;
+    }
+
+    window_recovery_schedule(generation);
+}
+
 static void update_window_notifications(void)
 {
     int window_count = 0;
@@ -433,6 +488,7 @@ static EVENT_HANDLER(APPLICATION_FRONT_SWITCHED)
         }
 
         window_manager_add_lost_focused_event(&g_window_manager, application_focused_window_id);
+        window_recovery_begin(application_focused_window_id, application->pid);
         return;
     }
 
@@ -747,6 +803,51 @@ static EVENT_HANDLER(WINDOW_CREATED)
     }
 }
 
+static enum window_recovery_result window_recovery_try(uint32_t wid, pid_t pid)
+{
+    struct application *application = window_manager_find_application(&g_window_manager, pid);
+    if (!application || !application_is_frontmost(application)) return WINDOW_RECOVERY_FINISHED;
+
+    int owner = 0;
+    pid_t owner_pid = 0;
+    if (SLSGetWindowOwner(g_connection, wid, &owner) != kCGErrorSuccess ||
+        SLSConnectionGetPID(owner, &owner_pid) != kCGErrorSuccess ||
+        owner_pid != pid) return WINDOW_RECOVERY_FINISHED;
+
+    AXUIElementRef window_ref = NULL;
+    AXError error = AXUIElementCopyAttributeValue(application->ref, kAXFocusedWindowAttribute, (CFTypeRef *)&window_ref);
+    if (error != kAXErrorSuccess || !window_ref) {
+        if (window_ref) CFRelease(window_ref);
+        return WINDOW_RECOVERY_RETRY;
+    }
+
+    uint32_t focused_wid = ax_window_id(window_ref);
+    if (focused_wid != wid) {
+        CFRelease(window_ref);
+        return focused_wid ? WINDOW_RECOVERY_FINISHED : WINDOW_RECOVERY_RETRY;
+    }
+
+    uint8_t ordered_in = 0;
+    SLSWindowIsOrderedIn(g_connection, wid, &ordered_in);
+    if (!ordered_in) {
+        CFRelease(window_ref);
+        return WINDOW_RECOVERY_RETRY;
+    }
+
+    debug("%s: retrying discovery of %s %d\n", __FUNCTION__, application->name, wid);
+    window_manager_add_lost_focused_event(&g_window_manager, wid);
+
+    // Use the full creation handler so rules, signals, tiling, and native-tab
+    // handovers run exactly as they do for a regular creation notification.
+    EVENT_HANDLER_WINDOW_CREATED((void *) window_ref, 0);
+    return window_manager_find_window(&g_window_manager, wid) ? WINDOW_RECOVERY_FINISHED : WINDOW_RECOVERY_RETRY;
+}
+
+static EVENT_HANDLER(WINDOW_RECOVERY)
+{
+    window_recovery_run((uint32_t)(uintptr_t) context, window_recovery_try);
+}
+
 static struct {
     pid_t pid;
     uint64_t time;
@@ -807,8 +908,6 @@ static EVENT_HANDLER(WINDOW_DESTROYED)
         update_window_notifications();
     }
 }
-
-#define WINDOW_FOCUS_FROM_TAB 1
 
 // NOTE: window_space reports a space for a hidden tab, so ordered-in is the only reliable test for one.
 // Moving a tab out to its own window posts no create and no 1326 -- 815 is the only signal it happened.
@@ -882,11 +981,21 @@ static void tabbed_window_demote(struct window *window)
 static EVENT_HANDLER(WINDOW_FOCUSED)
 {
     __atomic_store_n(&__pending_window_focus, false, __ATOMIC_RELEASE);
-    uint32_t window_id = (uint32_t)(intptr_t) context;
+    uint32_t window_id;
+    pid_t window_pid = 0;
+    if (param1 == WINDOW_FOCUS_FROM_AX) {
+        window_id = ax_window_id(context);
+        window_pid = ax_window_pid(context);
+        CFRelease(context);
+    } else {
+        window_id = (uint32_t)(intptr_t) context;
+    }
+    if (!window_id) return;
 
     struct window *window = window_manager_find_window(&g_window_manager, window_id);
     if (!window) {
         window_manager_add_lost_focused_event(&g_window_manager, window_id);
+        window_recovery_begin(window_id, window_pid);
         return;
     }
 
@@ -980,17 +1089,22 @@ static bool tabbed_window_swap(struct view *view, struct window *a, struct windo
 
 // NOTE: AppKit posts this instead of kAXFocusedWindowChanged for a tabbed window and names only the
 // INCOMING tab; the outgoing one is named by the 1325/1326 pair, which is where the node swap happens.
-// An unknown wid is a window still being created -- adopting it here would starve WINDOW_CREATED.
+// Let WINDOW_CREATED handle new tabs first; a delayed retry handles a missing creation notification.
 static EVENT_HANDLER(TABBED_WINDOW_FOCUSED)
 {
     uint32_t wid = (uint32_t) param1;
+    pid_t pid = ax_window_pid(context);
     CFRelease(context);
 
-    if (!g_window_manager.window_native_tabs) return;
+    if (!wid || !g_window_manager.window_native_tabs) return;
 
     debug("%s: %d\n", __FUNCTION__, wid);
 
-    if (!window_manager_find_window(&g_window_manager, wid)) return;
+    if (!window_manager_find_window(&g_window_manager, wid)) {
+        window_manager_add_lost_focused_event(&g_window_manager, wid);
+        window_recovery_begin(wid, pid);
+        return;
+    }
 
     g_tab_promoted.wid = wid;
     g_tab_promoted.time = read_os_timer();

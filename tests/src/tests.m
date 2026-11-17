@@ -14,6 +14,7 @@ typedef TEST_SIG(function);
 #include "area.c"
 #include "window_ordered.c"
 #include "native_tabs.c"
+#include "window_recovery.c"
 
 #define TEST_ENTRY(name) { #name, test_##name },
 #define TEST_LIST                                              \
@@ -34,7 +35,15 @@ typedef TEST_SIG(function);
     TEST_ENTRY(native_tab_order_in_does_not_tile_hidden_tab)  \
     TEST_ENTRY(native_tabs_keep_ordinary_hide_on_close)       \
     TEST_ENTRY(native_tab_removal_ring_deduplicates)          \
-    TEST_ENTRY(native_tab_float_handover_preserves_focus)
+    TEST_ENTRY(native_tab_float_handover_preserves_focus)      \
+    TEST_ENTRY(window_recovery_registers_missing_window)      \
+    TEST_ENTRY(window_recovery_defers_to_normal_creation)      \
+    TEST_ENTRY(window_recovery_retries_transient_ax_failure)   \
+    TEST_ENTRY(window_recovery_deduplicates_focus_events)      \
+    TEST_ENTRY(window_recovery_ignores_stale_timer)            \
+    TEST_ENTRY(window_recovery_bounds_retries_and_allows_later_focus) \
+    TEST_ENTRY(window_recovery_stops_after_application_exit)   \
+    TEST_ENTRY(window_recovery_rejects_missing_identity_and_tracked_windows)
 
 static struct {
     char *name;

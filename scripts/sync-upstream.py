@@ -19,6 +19,8 @@ def main():
     parser.add_argument("--event", choices=["push", "schedule", "workflow_dispatch"], required=True)
     parser.add_argument("--upstream", default="https://github.com/asmvik/yabai.git")
     parser.add_argument("--output", default=os.environ.get("GITHUB_OUTPUT"))
+    parser.add_argument("--check-only", action="store_true",
+                        help="Report whether a build is needed without merging or changing HEAD")
     args = parser.parse_args()
 
     git("diff", "--quiet", "HEAD", "--")
@@ -27,7 +29,7 @@ def main():
     upstream = git("rev-parse", "refs/remotes/upstream/master").stdout.strip()
     current = git("merge-base", "--is-ancestor", upstream, "HEAD", check=False).returncode == 0
 
-    if not current:
+    if not current and not args.check_only:
         merge = git("merge", "--no-edit", upstream, check=False)
         print(merge.stdout, end="")
         if merge.returncode:

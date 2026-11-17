@@ -39,9 +39,12 @@ class UpstreamSyncTest(unittest.TestCase):
         git(repo, "commit", "-m", name)
         return git(repo, "rev-parse", "HEAD")
 
-    def prepare(self, event="schedule"):
+    def prepare(self, event="schedule", check_only=False):
+        command = [sys.executable, str(SCRIPT), "--event", event, "--upstream", str(self.upstream), "--output", str(self.output)]
+        if check_only:
+            command.append("--check-only")
         result = subprocess.run(
-            [sys.executable, str(SCRIPT), "--event", event, "--upstream", str(self.upstream), "--output", str(self.output)],
+            command,
             cwd=self.fork, text=True, capture_output=True,
         )
         values = {}
@@ -88,6 +91,27 @@ class UpstreamSyncTest(unittest.TestCase):
         result, values = self.prepare()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(values["source_sha"], upstream)
+
+    def test_check_only_reports_changes_without_merging(self):
+        base = self.commit(self.fork, "fork.txt", "native tabs\n")
+        upstream = self.commit(self.upstream, "upstream.txt", "new upstream fix\n")
+        result, values = self.prepare(check_only=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(values["build_required"], "true")
+        self.assertEqual(values["base_sha"], base)
+        self.assertEqual(values["upstream_sha"], upstream)
+        self.assertEqual(git(self.fork, "rev-parse", "HEAD"), base)
+        self.assertEqual(git(self.fork, "status", "--porcelain"), "")
+
+    def test_check_only_skips_unchanged_schedule(self):
+        result, values = self.prepare(check_only=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(values["build_required"], "false")
+
+    def test_check_only_still_builds_fork_push(self):
+        result, values = self.prepare("push", check_only=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(values["build_required"], "true")
 
 
 if __name__ == "__main__":

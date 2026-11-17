@@ -50,6 +50,13 @@ The visibility handlers are reconciled with native tabs. With native tabs
 enabled, ordinary hide handling waits for the 250 ms tab-event pairing interval
 and rechecks the window. Tab handovers themselves do not wait for that timer.
 
+If a focused window was missed during Accessibility discovery, the fork retries
+registration through the normal window-creation handler. The first attempt waits
+250 ms for the application's creation notification, with at most five attempts
+while that window remains focused. A later focus can retry again. Recovery
+preserves normal rules and tab handling, stops for closed windows or exited
+applications, and does not poll tracked windows.
+
 ## Install a prebuilt release with Homebrew
 
 After removing or unlinking a conflicting yabai installation:
@@ -91,8 +98,13 @@ and on manual dispatch. It fetches `asmvik/yabai`'s `master` and merges it into
 the fork in a temporary Actions checkout. It never resets or force-pushes the
 fork over its patches.
 
-The workflow tests merge behavior, builds and runs the native-tab/visibility
-regressions, and compiles a universal release on a GitHub-hosted Mac. Only then
+An Ubuntu job checks for changes before requesting a Mac. Unchanged scheduled
+checks finish there. Builds use `macos-15-intel` to avoid the ARM runner capacity
+failures seen with `macos-15`; the output still contains both Apple Silicon and
+Intel architectures.
+
+The workflow tests merge behavior, builds and runs the native-tab, visibility,
+and window-recovery regressions, and compiles a universal release. Only then
 does it push the merge, publish a release with SHA-256 checksums and source
 metadata, and update `Formula/yabai.rb`. Unchanged scheduled checks skip builds.
 A merge conflict, failed check, or concurrent change to `master` stops
@@ -110,8 +122,9 @@ automatic upstream sync follows asmvik's mainline.
 
 ## Validation and rollback
 
-`make -C tests` exercises layout and visibility using synthetic window and Space
-IDs. It does not move the user's windows. `python3 -m unittest discover -s tests`
+`make -C tests` exercises layout, visibility, and bounded discovery recovery
+using synthetic window and Space IDs. It does not move the user's windows.
+`python3 -m unittest discover -s tests`
 checks successful merges, no-change runs, and conflict recovery in disposable
 Git repositories. The existing `tests/integration/hide_on_close.sh` is an
 explicit interactive test and is not run by the unit-test workflow.
