@@ -1,9 +1,9 @@
 class Yabai < Formula
   desc "Tiling window manager with native macOS tab support"
   homepage "https://github.com/toby-wong/yabai"
-  url "https://github.com/toby-wong/yabai/releases/download/toby-v7.1.25-r31.1/yabai-v7.1.25-toby.31.1.tar.gz"
-  version "7.1.25.31.1"
-  sha256 "7841479416d7ef0e50b853ce0d8c6210a289e493a28d0c41aa3fcaaa385c2d8e"
+  url "https://github.com/toby-wong/yabai/releases/download/toby-v7.1.25-r33.1/yabai-v7.1.25-toby.33.1.tar.gz"
+  version "7.1.25.33.1"
+  sha256 "e0e90a7c9102e7d5332b71cf56d526aba39a93452bfc4a6ef74b5ad68b045934"
   license "MIT"
 
   depends_on macos: :big_sur
@@ -28,6 +28,6 @@ class Yabai < Formula
   end
 
   test do
-    assert_match "yabai-v7.1.25-toby.31.1+25a50843", shell_output("#{bin}/yabai --version")
+    assert_match "yabai-v7.1.25-toby.33.1+1f2daf70", shell_output("#{bin}/yabai --version")
   end
 end
