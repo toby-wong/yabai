@@ -190,6 +190,7 @@ void window_manager_apply_manage_rules_to_window(struct space_manager *sm, struc
     }
 
     if (match) window_manager_apply_manage_rule_effects_to_window(sm, wm, window, &effects);
+    if (effects.scratchpad) free(effects.scratchpad);
 }
 
 void window_manager_apply_rules_to_window(struct space_manager *sm, struct window_manager *wm, struct window *window, char *window_title, char *window_role, char *window_subrole, bool one_shot_rules)
@@ -214,6 +215,7 @@ void window_manager_apply_rules_to_window(struct space_manager *sm, struct windo
     }
 
     if (match) window_manager_apply_rule_effects_to_window(sm, wm, window, &effects);
+    if (effects.scratchpad) free(effects.scratchpad);
 }
 
 void window_manager_set_focus_follows_mouse(struct window_manager *wm, enum ffm_mode mode)
@@ -1883,6 +1885,8 @@ bool window_manager_add_existing_application_windows(struct space_manager *sm, s
                     int app_window_list_len = ts_buf_len(app_window_list);
                     if (app_window_list_len == 0) break;
 
+                    bool matched = false;
+
                     memcpy(data+0xc, &element_id, sizeof(uint64_t));
                     AXUIElementRef element_ref = _AXUIElementCreateWithRemoteToken(data_ref);
 
@@ -1892,7 +1896,6 @@ bool window_manager_add_existing_application_windows(struct space_manager *sm, s
                     if (role) {
                         if (CFEqual(role, kAXWindowRole)) {
                             uint32_t element_wid = ax_window_id(element_ref);
-                            bool matched = false;
 
                             if (element_wid != 0) {
                                 for (int i = 0; i < app_window_list_len; ++i) {
@@ -1906,13 +1909,13 @@ bool window_manager_add_existing_application_windows(struct space_manager *sm, s
 
                             if (matched) {
                                 window_manager_create_and_add_window(sm, wm, application, element_ref, element_wid, false);
-                            } else {
-                                CFRelease(element_ref);
                             }
                         }
 
                         CFRelease(role);
                     }
+
+                    if (!matched) CFRelease(element_ref);
                 }
 
                 CFRelease(data_ref);

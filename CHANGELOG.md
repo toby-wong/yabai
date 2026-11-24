@@ -14,6 +14,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   - Based on the work of @jpatrolla in asmvik/yabai#68
 
 ### Changed
+- With SIP enabled, triggering `space --focus` in quick succession could result in black desktop for several seconds [#2823](https://github.com/asmvik/yabai/issues/2823)
+- Fixed minor leak when using scratchpad assignment through window rules.
+- Fixed some missing calls to CFRelease causing minor leaks under specific conditions.
 - Fixed synthesized window focus event [#2816](https://github.com/asmvik/yabai/issues/2816) [#1355](https://github.com/asmvik/yabai/issues/1355)
 - Fixed mission control detection for macOS 27 Golden Gate [#2851](https://github.com/asmvik/yabai/issues/2851)
 - Apply macOS Tahoe compatibility fixes to macOS 27 Golden Gate
